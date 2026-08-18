@@ -135,6 +135,22 @@ namespace PastPapers.ContentApi.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("subjects", "content");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("d8475ca5-e465-4c16-a445-e9f043054976"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 8, 18, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Name = "Mathematics",
+                            Slug = "mathematics"
+                        },
+                        new
+                        {
+                            Id = new Guid("4d8aa865-32d6-41fa-a1cf-f9a09fdcd7cc"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 8, 18, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Name = "Physical Sciences",
+                            Slug = "physical-sciences"
+                        });
                 });
 
             modelBuilder.Entity("PastPapers.ContentApi.Features.Topics.Topic", b =>

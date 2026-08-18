@@ -35,6 +35,27 @@ public sealed class SubjectConfiguration : IEntityTypeConfiguration<Subject>
 
         builder.HasIndex(subject => subject.Slug)
             .IsUnique();
+        
+        
+        builder.HasData(
+            new
+            {
+                Id = Guid.Parse("d8475ca5-e465-4c16-a445-e9f043054976"),
+                Name = "Mathematics",
+                Slug = "mathematics",
+                CreatedAt = new DateTimeOffset(
+                    2026, 8, 18, 0, 0, 0, TimeSpan.Zero)
+            },
+            new
+            {
+                Id = Guid.Parse("4d8aa865-32d6-41fa-a1cf-f9a09fdcd7cc"),
+                Name = "Physical Sciences",
+                Slug = "physical-sciences",
+                CreatedAt = new DateTimeOffset(
+                    2026, 8, 18, 0, 0, 0, TimeSpan.Zero)
+            });
+
+        builder.HasMany(subject => subject.Topics);
 
         builder.HasMany(subject => subject.Topics)
             .WithOne(topic => topic.Subject)
