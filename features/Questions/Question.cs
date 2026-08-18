@@ -15,6 +15,8 @@ public sealed class Question
 
     public short PaperNumber { get; set; }
 
+    public int DisplayOrder { get; set; }
+
     public required string QuestionNumber { get; set; }
 
     public required string QuestionImageUrl { get; set; }

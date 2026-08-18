@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace PastPapers.ContentApi.Features.Questions;
@@ -53,6 +54,10 @@ public sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
             .HasColumnType("text")
             .IsRequired();
 
+        builder.Property(question => question.DisplayOrder)
+            .HasColumnName("display_order")
+            .IsRequired();
+
         builder.Property(question => question.MemoImageUrl)
             .HasColumnName("memo_image_url")
             .HasColumnType("text")
@@ -81,6 +86,7 @@ public sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
                 question.ExamYear,
                 question.ExamSeason,
                 question.PaperNumber,
+                question.DisplayOrder,
                 question.QuestionNumber
             })
             .IsUnique();

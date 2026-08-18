@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PastPapers.ContentApi.Data;
@@ -11,9 +12,11 @@ using PastPapers.ContentApi.Data;
 namespace PastPapers.ContentApi.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260818213105_SeedInitialTopics")]
+    partial class SeedInitialTopics
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -36,10 +39,6 @@ namespace PastPapers.ContentApi.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("display_order");
 
                     b.Property<string>("ExamSeason")
                         .IsRequired()
@@ -93,7 +92,7 @@ namespace PastPapers.ContentApi.Data.Migrations
 
                     b.HasIndex("Status");
 
-                    b.HasIndex("TopicId", "ExamYear", "ExamSeason", "PaperNumber", "DisplayOrder", "QuestionNumber")
+                    b.HasIndex("TopicId", "ExamYear", "ExamSeason", "PaperNumber", "QuestionNumber")
                         .IsUnique();
 
                     b.ToTable("questions", "content", t =>
