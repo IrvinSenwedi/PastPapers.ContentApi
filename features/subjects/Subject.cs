@@ -1,4 +1,6 @@
-﻿using PastPapers.ContentApi.Features.Topics;
+﻿using System;
+using System.Collections.Generic;
+using PastPapers.ContentApi.Features.Topics;
 namespace PastPapers.ContentApi.Features.Subjects;
 
 public sealed class Subject

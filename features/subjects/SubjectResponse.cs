@@ -1,4 +1,5 @@
-﻿namespace PastPapers.ContentApi.Features.Subjects;
+﻿using System;
+namespace PastPapers.ContentApi.Features.Subjects;
 
 public sealed record SubjectResponse(
     Guid Id,

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PastPapers.ContentApi.Data;
 using PastPapers.ContentApi.Features.Subjects;
-
+using PastPapers.ContentApi.Features.Topics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,7 +46,7 @@ app.MapGet("/weatherforecast", () =>
     .WithName("GetWeatherForecast");
 
 app.MapSubjectEndpoints();
-
+app.MapTopicEndpoints();
 app.Run();
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
