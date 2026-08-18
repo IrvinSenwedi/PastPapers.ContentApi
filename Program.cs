@@ -17,6 +17,15 @@ var connectionString = builder.Configuration
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+var contentIngestionKey = builder.Configuration[
+    "ContentIngestion:ApiKey"];
+
+if (string.IsNullOrWhiteSpace(contentIngestionKey))
+{
+    throw new InvalidOperationException(
+        "Configuration value 'ContentIngestion:ApiKey' is required.");
+}
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

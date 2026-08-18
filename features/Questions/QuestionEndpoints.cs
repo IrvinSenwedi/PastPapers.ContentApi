@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PastPapers.ContentApi.Common.Pagination;
 using PastPapers.ContentApi.Data;
+using PastPapers.ContentApi.Common.Security;
 
 namespace PastPapers.ContentApi.Features.Questions;
 
@@ -34,6 +35,15 @@ public static class QuestionEndpoints
             .WithSummary("Gets a published question by ID")
             .Produces<QuestionResponse>()
             .Produces(StatusCodes.Status404NotFound);
+
+        group.MapPost("", CreateQuestionAsync)
+            .WithName("CreateQuestion")
+            .WithSummary("Creates a draft question from the ingestion pipeline")
+            .AddEndpointFilter<ContentIngestionKeyFilter>()
+            .Produces<QuestionIngestionResponse>(StatusCodes.Status201Created)
+            .ProducesValidationProblem()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status409Conflict);
 
         return endpoints;
     }
@@ -157,6 +167,92 @@ public static class QuestionEndpoints
             totalPages);
 
         return TypedResults.Ok(response);
+    }
+
+    private static async Task<IResult> CreateQuestionAsync(
+    CreateQuestionRequest request,
+    AppDbContext dbContext,
+    CancellationToken cancellationToken)
+    {
+        var errors = CreateQuestionRequestValidator.Validate(request);
+
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        var subjectSlug = request.SubjectSlug!.Trim();
+        var topicSlug = request.TopicSlug!.Trim();
+        var examSeason = request.ExamSeason!.Trim();
+        var questionNumber = request.QuestionNumber!.Trim();
+
+        var topic = await dbContext.Topics
+            .AsNoTracking()
+            .Where(topic =>
+                topic.Subject.Slug == subjectSlug &&
+                topic.Grade == request.Grade &&
+                topic.Slug == topicSlug)
+            .Select(topic => new
+            {
+                topic.Id
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (topic is null)
+        {
+            return TypedResults.ValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["topicSlug"] =
+                    [
+                        "No topic matches the supplied subject, grade and topic."
+                    ]
+                });
+        }
+
+        var duplicateExists = await dbContext.Questions
+            .AsNoTracking()
+            .AnyAsync(
+                question =>
+                    question.TopicId == topic.Id &&
+                    question.ExamYear == request.ExamYear &&
+                    question.ExamSeason == examSeason &&
+                    question.PaperNumber == request.PaperNumber &&
+                    question.QuestionNumber == questionNumber,
+                cancellationToken);
+
+        if (duplicateExists)
+        {
+            return TypedResults.Conflict(
+                new
+                {
+                    error = "A matching question already exists."
+                });
+        }
+
+        var question = new Question
+        {
+            TopicId = topic.Id,
+            ExamYear = request.ExamYear,
+            ExamSeason = examSeason,
+            PaperNumber = request.PaperNumber,
+            QuestionNumber = questionNumber,
+            DisplayOrder = request.DisplayOrder,
+            QuestionImageUrl = request.QuestionImageUrl!.Trim(),
+            MemoImageUrl = request.MemoImageUrl!.Trim(),
+            Status = QuestionStatus.Draft
+        };
+
+        dbContext.Questions.Add(question);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var response = new QuestionIngestionResponse(
+            question.Id,
+            question.Status.ToString());
+
+        return TypedResults.Created(
+            $"/api/questions/{question.Id}",
+            response);
     }
 
     private static async Task<

@@ -1,6 +1,55 @@
-@PastPapers.ContentApi_HostAddress = http://localhost:5038
 
-GET {{PastPapers.ContentApi_HostAddress}}/weatherforecast/
-Accept: application/json
+@baseUrl = http://localhost:5038
 
-###
+### Missing ingestion key — expect 401
+POST {{baseUrl}}/api/questions
+Content-Type: application/json
+
+{
+  "subjectSlug": "physical-sciences",
+  "grade": 12,
+  "topicSlug": "newtonian-mechanics",
+  "examYear": 2022,
+  "examSeason": "May-June",
+  "paperNumber": 1,
+  "questionNumber": "test",
+  "displayOrder": 1,
+  "questionImageUrl": "https://example.com/question.webp",
+  "memoImageUrl": "https://example.com/memo.webp"
+}
+
+### Invalid ingestion key — expect 401
+POST {{baseUrl}}/api/questions
+Content-Type: application/json
+X-Content-Ingestion-Key: invalid-key
+
+{
+  "subjectSlug": "physical-sciences",
+  "grade": 12,
+  "topicSlug": "newtonian-mechanics",
+  "examYear": 2022,
+  "examSeason": "May-June",
+  "paperNumber": 1,
+  "questionNumber": "test",
+  "displayOrder": 1,
+  "questionImageUrl": "https://example.com/question.webp",
+  "memoImageUrl": "https://example.com/memo.webp"
+}
+
+### Valid key but invalid grade — expect 400, with no insertion
+POST {{baseUrl}}/api/questions
+Content-Type: application/json
+X-Content-Ingestion-Key: {{ingestionKey}}
+
+{
+  "subjectSlug": "physical-sciences",
+  "grade": 9,
+  "topicSlug": "newtonian-mechanics",
+  "examYear": 2022,
+  "examSeason": "May-June",
+  "paperNumber": 1,
+  "questionNumber": "test",
+  "displayOrder": 1,
+  "questionImageUrl": "https://example.com/question.webp",
+  "memoImageUrl": "https://example.com/memo.webp"
+}
