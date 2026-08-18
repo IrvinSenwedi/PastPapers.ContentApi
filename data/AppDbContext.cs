@@ -21,4 +21,41 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
         base.OnModelCreating(modelBuilder);
     }
+    
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        UpdateQuestionTimestamps();
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        UpdateQuestionTimestamps();
+
+        return base.SaveChangesAsync(
+            acceptAllChangesOnSuccess,
+            cancellationToken);
+    }
+
+    private void UpdateQuestionTimestamps()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var entry in ChangeTracker.Entries<Question>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = now;
+                entry.Entity.UpdatedAt = now;
+            }
+
+            if (entry.State == EntityState.Modified)
+            {
+                entry.Entity.UpdatedAt = now;
+            }
+        }
+    }
 }
