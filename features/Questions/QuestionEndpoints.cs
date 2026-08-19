@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using PastPapers.ContentApi.Common.Pagination;
-using PastPapers.ContentApi.Data;
 using PastPapers.ContentApi.Common.Security;
+using PastPapers.ContentApi.Data;
 
 namespace PastPapers.ContentApi.Features.Questions;
 
@@ -38,12 +38,15 @@ public static class QuestionEndpoints
 
         group.MapPost("", CreateQuestionAsync)
             .WithName("CreateQuestion")
-            .WithSummary("Creates a draft question from the ingestion pipeline")
+            .WithSummary(
+                "Creates or updates a question from the ingestion pipeline")
             .AddEndpointFilter<ContentIngestionKeyFilter>()
-            .Produces<QuestionIngestionResponse>(StatusCodes.Status201Created)
+            .Produces<QuestionIngestionResponse>(
+                StatusCodes.Status200OK)
+            .Produces<QuestionIngestionResponse>(
+                StatusCodes.Status201Created)
             .ProducesValidationProblem()
-            .Produces(StatusCodes.Status401Unauthorized)
-            .Produces(StatusCodes.Status409Conflict);
+            .Produces(StatusCodes.Status401Unauthorized);
 
         group.MapPatch("/{id:guid}/status", UpdateQuestionStatusAsync)
             .WithName("UpdateQuestionStatus")
@@ -82,12 +85,14 @@ public static class QuestionEndpoints
 
         if (examYear is < 1996 or > 2100)
         {
-            errors["examYear"] = ["Exam year must be between 1996 and 2100."];
+            errors["examYear"] =
+                ["Exam year must be between 1996 and 2100."];
         }
 
         if (paperNumber is < 1 or > 4)
         {
-            errors["paperNumber"] = ["Paper number must be between 1 and 4."];
+            errors["paperNumber"] =
+                ["Paper number must be between 1 and 4."];
         }
 
         if (page < 1)
@@ -97,7 +102,8 @@ public static class QuestionEndpoints
 
         if (pageSize is < 1 or > 100)
         {
-            errors["pageSize"] = ["Page size must be between 1 and 100."];
+            errors["pageSize"] =
+                ["Page size must be between 1 and 100."];
         }
 
         if (errors.Count > 0)
@@ -141,7 +147,8 @@ public static class QuestionEndpoints
         if (paperNumber.HasValue)
         {
             query = query.Where(
-                question => question.PaperNumber == paperNumber.Value);
+                question =>
+                    question.PaperNumber == paperNumber.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(questionNumber))
@@ -149,7 +156,8 @@ public static class QuestionEndpoints
             var prefix = questionNumber!.Trim();
 
             query = query.Where(
-                question => question.QuestionNumber.StartsWith(prefix));
+                question =>
+                    question.QuestionNumber.StartsWith(prefix));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -166,7 +174,8 @@ public static class QuestionEndpoints
 
         var totalPages = totalCount == 0
             ? 0
-            : (int)Math.Ceiling(totalCount / (double)pageSize);
+            : (int)Math.Ceiling(
+                totalCount / (double)pageSize);
 
         var response = new PagedResponse<QuestionResponse>(
             items,
@@ -177,14 +186,34 @@ public static class QuestionEndpoints
 
         return TypedResults.Ok(response);
     }
-    
-    
-    private static async Task<IResult> CreateQuestionAsync(
-    CreateQuestionRequest request,
-    AppDbContext dbContext,
-    CancellationToken cancellationToken)
+
+    private static async Task<
+        Results<Ok<QuestionResponse>, NotFound>>
+        GetQuestionByIdAsync(
+            Guid id,
+            AppDbContext dbContext,
+            CancellationToken cancellationToken)
     {
-        var errors = CreateQuestionRequestValidator.Validate(request);
+        var question = await dbContext.Questions
+            .AsNoTracking()
+            .Where(question =>
+                question.Id == id &&
+                question.Status == QuestionStatus.Published)
+            .Select(QuestionProjections.ToResponse)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return question is null
+            ? TypedResults.NotFound()
+            : TypedResults.Ok(question);
+    }
+
+    private static async Task<IResult> CreateQuestionAsync(
+        CreateQuestionRequest request,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var errors =
+            CreateQuestionRequestValidator.Validate(request);
 
         if (errors.Count > 0)
         {
@@ -215,14 +244,14 @@ public static class QuestionEndpoints
                 {
                     ["topicSlug"] =
                     [
-                        "No topic matches the supplied subject, grade and topic."
+                        "No topic matches the supplied subject, " +
+                        "grade and topic."
                     ]
                 });
         }
 
-        var duplicateExists = await dbContext.Questions
-            .AsNoTracking()
-            .AnyAsync(
+        var existingQuestion = await dbContext.Questions
+            .SingleOrDefaultAsync(
                 question =>
                     question.TopicId == topic.Id &&
                     question.ExamYear == request.ExamYear &&
@@ -231,13 +260,23 @@ public static class QuestionEndpoints
                     question.QuestionNumber == questionNumber,
                 cancellationToken);
 
-        if (duplicateExists)
+        if (existingQuestion is not null)
         {
-            return TypedResults.Conflict(
-                new
-                {
-                    error = "A matching question already exists."
-                });
+            existingQuestion.DisplayOrder =
+                request.DisplayOrder;
+
+            existingQuestion.QuestionImageUrl =
+                request.QuestionImageUrl!.Trim();
+
+            existingQuestion.MemoImageUrl =
+                request.MemoImageUrl!.Trim();
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            return TypedResults.Ok(
+                new QuestionIngestionResponse(
+                    existingQuestion.Id,
+                    existingQuestion.Status.ToString()));
         }
 
         var question = new Question
@@ -248,8 +287,10 @@ public static class QuestionEndpoints
             PaperNumber = request.PaperNumber,
             QuestionNumber = questionNumber,
             DisplayOrder = request.DisplayOrder,
-            QuestionImageUrl = request.QuestionImageUrl!.Trim(),
-            MemoImageUrl = request.MemoImageUrl!.Trim(),
+            QuestionImageUrl =
+                request.QuestionImageUrl!.Trim(),
+            MemoImageUrl =
+                request.MemoImageUrl!.Trim(),
             Status = QuestionStatus.Draft
         };
 
@@ -265,11 +306,12 @@ public static class QuestionEndpoints
             response);
     }
 
+    
     private static async Task<IResult> UpdateQuestionStatusAsync(
-    Guid id,
-    UpdateQuestionStatusRequest request,
-    AppDbContext dbContext,
-    CancellationToken cancellationToken)
+        Guid id,
+        UpdateQuestionStatusRequest request,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Status) ||
             !Enum.TryParse<QuestionStatus>(
@@ -305,25 +347,5 @@ public static class QuestionEndpoints
             new QuestionIngestionResponse(
                 question.Id,
                 question.Status.ToString()));
-    }
-
-    private static async Task<
-    Results<Ok<QuestionResponse>, NotFound>>
-    GetQuestionByIdAsync(
-        Guid id,
-        AppDbContext dbContext,
-        CancellationToken cancellationToken)
-    {
-        var question = await dbContext.Questions
-            .AsNoTracking()
-            .Where(question =>
-                question.Id == id &&
-                question.Status == QuestionStatus.Published)
-            .Select(QuestionProjections.ToResponse)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        return question is null
-            ? TypedResults.NotFound()
-            : TypedResults.Ok(question);
     }
 }
