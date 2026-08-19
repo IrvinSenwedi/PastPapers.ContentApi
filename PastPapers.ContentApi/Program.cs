@@ -59,3 +59,4 @@ app.MapTopicEndpoints();
 app.MapQuestionEndpoints();
 
 app.Run();
+public partial class Program;
