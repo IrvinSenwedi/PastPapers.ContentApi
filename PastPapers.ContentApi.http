@@ -1,7 +1,7 @@
 
 @baseUrl = http://localhost:5038
 
-### Missing ingestion key — expect 401
+### Missing ingestion key ï¿½ expect 401
 POST {{baseUrl}}/api/questions
 Content-Type: application/json
 
@@ -18,7 +18,7 @@ Content-Type: application/json
   "memoImageUrl": "https://example.com/memo.webp"
 }
 
-### Invalid ingestion key — expect 401
+### Invalid ingestion key ï¿½ expect 401
 POST {{baseUrl}}/api/questions
 Content-Type: application/json
 X-Content-Ingestion-Key: invalid-key
@@ -36,7 +36,7 @@ X-Content-Ingestion-Key: invalid-key
   "memoImageUrl": "https://example.com/memo.webp"
 }
 
-### Valid key but invalid grade — expect 400, with no insertion
+### Valid key but invalid grade ï¿½ expect 400, with no insertion
 POST {{baseUrl}}/api/questions
 Content-Type: application/json
 X-Content-Ingestion-Key: {{ingestionKey}}
@@ -52,4 +52,13 @@ X-Content-Ingestion-Key: {{ingestionKey}}
   "displayOrder": 1,
   "questionImageUrl": "https://example.com/question.webp",
   "memoImageUrl": "https://example.com/memo.webp"
+}
+
+### Publish ingested question
+PATCH {{baseUrl}}/api/questions/bb889c0e-7314-4be3-b498-3c5b59009e14/status
+Content-Type: application/json
+X-Content-Ingestion-Key: {{ingestionKey}}
+
+{
+  "status": "Published"
 }

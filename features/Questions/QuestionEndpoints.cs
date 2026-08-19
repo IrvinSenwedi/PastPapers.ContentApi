@@ -45,6 +45,15 @@ public static class QuestionEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status409Conflict);
 
+        group.MapPatch("/{id:guid}/status", UpdateQuestionStatusAsync)
+            .WithName("UpdateQuestionStatus")
+            .WithSummary("Updates the publishing status of a question")
+            .AddEndpointFilter<ContentIngestionKeyFilter>()
+            .Produces<QuestionIngestionResponse>()
+            .ProducesValidationProblem()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 
@@ -168,7 +177,8 @@ public static class QuestionEndpoints
 
         return TypedResults.Ok(response);
     }
-
+    
+    
     private static async Task<IResult> CreateQuestionAsync(
     CreateQuestionRequest request,
     AppDbContext dbContext,
@@ -253,6 +263,48 @@ public static class QuestionEndpoints
         return TypedResults.Created(
             $"/api/questions/{question.Id}",
             response);
+    }
+
+    private static async Task<IResult> UpdateQuestionStatusAsync(
+    Guid id,
+    UpdateQuestionStatusRequest request,
+    AppDbContext dbContext,
+    CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Status) ||
+            !Enum.TryParse<QuestionStatus>(
+                request.Status,
+                ignoreCase: true,
+                out var status))
+        {
+            return TypedResults.ValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["status"] =
+                    [
+                        "Status must be Draft, Published or Archived."
+                    ]
+                });
+        }
+
+        var question = await dbContext.Questions
+            .SingleOrDefaultAsync(
+                question => question.Id == id,
+                cancellationToken);
+
+        if (question is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        question.Status = status;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.Ok(
+            new QuestionIngestionResponse(
+                question.Id,
+                question.Status.ToString()));
     }
 
     private static async Task<
