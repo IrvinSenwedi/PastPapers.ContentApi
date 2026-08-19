@@ -1,24 +1,23 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using PastPapers.ContentApi.Data;
+using PastPapers.ContentApi.Features.Questions;
 using PastPapers.ContentApi.Features.Subjects;
 using PastPapers.ContentApi.Features.Topics;
-using PastPapers.ContentApi.Features.Questions;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
+
 var connectionString = builder.Configuration
                            .GetConnectionString("ContentDatabase")
                        ?? throw new InvalidOperationException(
                            "Connection string 'ContentDatabase' is not configured.");
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
-
-var contentIngestionKey = builder.Configuration[
-    "ContentIngestion:ApiKey"];
+var contentIngestionKey =
+    builder.Configuration["ContentIngestion:ApiKey"];
 
 if (string.IsNullOrWhiteSpace(contentIngestionKey))
 {
@@ -26,42 +25,37 @@ if (string.IsNullOrWhiteSpace(contentIngestionKey))
         "Configuration value 'ContentIngestion:ApiKey' is required.");
 }
 
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>(
+        name: "content_database");
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+app.UseExceptionHandler();
+app.UseHttpsRedirection();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+app.MapGet("/", () => TypedResults.Ok(
+        new
+        {
+            service = "PastPapers.ContentApi",
+            status = "running"
+        }))
+    .ExcludeFromDescription();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast");
+app.MapHealthChecks(
+    "/health",
+    new HealthCheckOptions());
 
 app.MapSubjectEndpoints();
 app.MapTopicEndpoints();
 app.MapQuestionEndpoints();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
