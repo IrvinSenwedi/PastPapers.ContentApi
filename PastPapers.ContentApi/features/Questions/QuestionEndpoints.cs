@@ -56,6 +56,18 @@ public static class QuestionEndpoints
             .ProducesValidationProblem()
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound);
+        
+        group.MapGet(
+                "/filter-options",
+                GetQuestionFilterOptionsAsync)
+            .WithName("GetQuestionFilterOptions")
+            .WithSummary(
+                "Gets available question filters for a topic")
+            .Produces<QuestionFilterOptionsResponse>()
+            .ProducesValidationProblem()
+            .Produces(StatusCodes.Status404NotFound);
+
+            
 
         return endpoints;
     }
@@ -347,5 +359,61 @@ public static class QuestionEndpoints
             new QuestionIngestionResponse(
                 question.Id,
                 question.Status.ToString()));
+    }
+    
+    private static async Task<
+            Results<
+                Ok<QuestionFilterOptionsResponse>,
+                ValidationProblem,
+                NotFound>>
+        GetQuestionFilterOptionsAsync(
+            AppDbContext dbContext,
+            Guid? topicId = null,
+            CancellationToken cancellationToken = default)
+    {
+        if (topicId is null || topicId == Guid.Empty)
+        {
+            return TypedResults.ValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["topicId"] =
+                        ["A valid topic ID is required."]
+                });
+        }
+
+        var topicExists = await dbContext.Topics
+            .AsNoTracking()
+            .AnyAsync(
+                topic => topic.Id == topicId.Value,
+                cancellationToken);
+
+        if (!topicExists)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var publishedQuestions = dbContext.Questions
+            .AsNoTracking()
+            .Where(question =>
+                question.TopicId == topicId.Value &&
+                question.Status ==
+                QuestionStatus.Published);
+
+        var examYears = await publishedQuestions
+            .Select(question => question.ExamYear)
+            .Distinct()
+            .OrderByDescending(year => year)
+            .ToListAsync(cancellationToken);
+
+        var examSeasons = await publishedQuestions
+            .Select(question => question.ExamSeason)
+            .Distinct()
+            .OrderBy(season => season)
+            .ToListAsync(cancellationToken);
+
+        return TypedResults.Ok(
+            new QuestionFilterOptionsResponse(
+                examYears,
+                examSeasons));
     }
 }
