@@ -67,6 +67,13 @@ public static class QuestionEndpoints
             .ProducesValidationProblem()
             .Produces(StatusCodes.Status404NotFound);
 
+        group.MapGet("/by-ids", GetQuestionsByIdsAsync)
+            .WithName("GetQuestionsByIds")
+            .WithSummary(
+              "Gets published questions by their IDs")
+            .Produces<List<QuestionResponse>>()
+            .ProducesValidationProblem();
+
             
 
         return endpoints;
@@ -370,6 +377,7 @@ public static class QuestionEndpoints
             AppDbContext dbContext,
             Guid? topicId = null,
             CancellationToken cancellationToken = default)
+
     {
         if (topicId is null || topicId == Guid.Empty)
         {
@@ -416,4 +424,84 @@ public static class QuestionEndpoints
                 examYears,
                 examSeasons));
     }
+
+
+    private static async Task<
+    Results<
+        Ok<List<QuestionResponse>>,
+        ValidationProblem>>
+    GetQuestionsByIdsAsync(
+        AppDbContext dbContext,
+        string? ids = null,
+        CancellationToken cancellationToken = default)
+{
+    if (string.IsNullOrWhiteSpace(ids))
+    {
+        return TypedResults.ValidationProblem(
+            new Dictionary<string, string[]>
+            {
+                ["ids"] =
+                    ["At least one question ID is required."]
+            });
+    }
+
+    var rawIds = ids.Split(
+        ',',
+        StringSplitOptions.RemoveEmptyEntries |
+        StringSplitOptions.TrimEntries);
+
+    if (rawIds.Length is < 1 or > 50)
+    {
+        return TypedResults.ValidationProblem(
+            new Dictionary<string, string[]>
+            {
+                ["ids"] =
+                [
+                    "Provide between 1 and 50 question IDs."
+                ]
+            });
+    }
+
+    var questionIds = new List<Guid>();
+
+    foreach (var rawId in rawIds)
+    {
+        if (!Guid.TryParse(rawId, out var questionId) ||
+            questionId == Guid.Empty)
+        {
+            return TypedResults.ValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["ids"] =
+                    [
+                        $"'{rawId}' is not a valid question ID."
+                    ]
+                });
+        }
+
+        if (!questionIds.Contains(questionId))
+        {
+            questionIds.Add(questionId);
+        }
+    }
+
+    var questions = await dbContext.Questions
+        .AsNoTracking()
+        .Where(question =>
+            questionIds.Contains(question.Id) &&
+            question.Status ==
+                QuestionStatus.Published)
+        .Select(QuestionProjections.ToResponse)
+        .ToListAsync(cancellationToken);
+
+    var questionsById = questions.ToDictionary(
+        question => question.Id);
+
+    var orderedQuestions = questionIds
+        .Where(questionsById.ContainsKey)
+        .Select(questionId => questionsById[questionId])
+        .ToList();
+
+    return TypedResults.Ok(orderedQuestions);
+}
 }
